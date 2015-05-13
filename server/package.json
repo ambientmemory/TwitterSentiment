@@ -1,0 +1,12 @@
+{
+	"name": "senti-analyzer",
+    "version": "1.0.0",
+    "description": "Sentiment Analyzer",
+    "dependencies": {
+		"periodic-task": "latest",
+		"twit": "latest",
+		"aws-sdk": "latest",
+		"request": "latest"
+    },
+    "author": "Piyali Mukherjee pm2678@columbia.edu"
+}

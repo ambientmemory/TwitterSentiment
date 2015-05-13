@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!-- Written by Piyali Mukherjee pm2678@columbia.edu -->
+<html>
+	<head>
+		<title>Debugging</title>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	</head>
+	<body>
+		<div>
+			<form method="POST" action="http://access.alchemyapi.com/calls/text/TextGetTextSentiment" >
+				<br>String :<br>
+				<input type="text" name="text" value="This is an unsentimental text"><br>
+				<input type="hidden" name="apikey" value="6e3a504462d2a0f80dc4cfabe1e4e77b2e41931a"><br>
+				<input type="hidden" name="outputMode" value="xml"><br>
+				<input type="hidden" name="showSourceText" value="1"><br>
+				<input type="submit" value="Send">
+			</form>
+		</div>		
+	</body>
+</html>

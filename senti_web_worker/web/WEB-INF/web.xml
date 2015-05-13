@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://xmlns.jcp.org/xml/ns/javaee" xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd" id="WebApp_ID" version="3.1">
+  <servlet>
+  	<servlet-name>senti_web_worker</servlet-name>
+  	<servlet-class>senti_worker.senti_web_worker</servlet-class>
+  	<init-param>
+  		<param-name>creds</param-name>
+  		<param-value>AKIAJ7YTNDBGWOZJZ5YQ:8P7Np5ZmxRV2+hgLxhJkhPwyVM1kDR5YvIchDxqQ</param-value>
+  </init-param>
+  <load-on-startup>0</load-on-startup>
+  </servlet>
+  <servlet-mapping>
+  	<servlet-name>senti_web_worker</servlet-name>
+  	<url-pattern>/</url-pattern>
+  </servlet-mapping>
+  <display-name>senti_web_worker</display-name>
+  <welcome-file-list>
+    <welcome-file>index.html</welcome-file>
+    <welcome-file>index.htm</welcome-file>
+    <welcome-file>index.jsp</welcome-file>
+    <welcome-file>default.html</welcome-file>
+    <welcome-file>default.htm</welcome-file>
+    <welcome-file>default.jsp</welcome-file>
+  </welcome-file-list>
+</web-app>

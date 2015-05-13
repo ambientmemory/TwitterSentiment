@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<head>
+	<meta name="viewport" content="text/html; charset=iso-8859-1">
+	<title>Tweet sentiment heatmap</title>
+	<style type="text/css">
+		html, body, #map-canvas{
+		margin: 0px;
+		padding: 0px;
+		height: 100%;
+		}
+	</style>
+	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBTpWrCFoKcZyLUqEG-z3P8oMx2gBQhT5A&amp;libraries=visualization"></script>
+	<!-- Adding the jQuery and javascript plug-ins that Bootstrap may need -->
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+	<!-- Include all compiled plugins (below), or include individual files as needed -->
+	<!-- Latest compiled and minified CSS of Bootstrap -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css">
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+	<script>
+		var geo_data = [];			//This will be an array of google.maps.LatLng object compunded with tag data
+		//The map rendering related functions and definitions
+		var base_map;			//This is the map
+		var heat_map;			//This is the heat map
+		var gradient_data = ["rgba(255,255,255,0.04)",
+						"rgba(0,255,255,0)",
+						"rgba(0,255,225,1)",
+						"rgba(0,191,255,1)",
+						"rgba(0,127,255,1)",
+						"rgba(0,90,255,1)",
+						"rgba(0,63,255,1)",
+						"rgba(0,30,255,1)",
+						"rgba(0,0,255,1)",
+						"rgba(0,0,223,1)",
+						"rgba(0,0,191,1)",
+						"rgba(0,0,159,1)",
+						"rgba(0,0,127,1)",
+						"rgba(30,0,91,1)",
+						"rgba(60,0,63,1)",
+						"rgba(90,0,31,1)",
+						"rgba(127,0,0,1)",
+						"rgba(159,0,0,1)",
+						"rgba(197,0,0,1)",
+						"rgba(255,0,0,1)"
+					];
+		function refresh_heat_map() {
+			if (geo_data.length < 2) return;	//nothing to refresh
+			if (heat_map) heat_map.setMap(null);	//erase the existing heatmap
+			heat_map_data = [];
+			for (var i=0; i < geo_data.length - 1 ; i++) {
+				//We first scale the weight from [-1,+1] range to [0,20] range
+				var wt = 10*(geo_data[i].senti+1.0);
+				var a_map_obj = {"location" : new google.maps.LatLng(geo_data[i].lat, geo_data[i].lng), "weight" : wt};
+				heat_map_data.push(a_map_obj);
+			};
+			console.log("INFO : size of heat_map : "+ heat_map_data.length);
+			//Now we form the options
+			heat_map = new google.maps.visualization.HeatmapLayer({data: heat_map_data});			
+			heat_map.set('gradient', gradient_data);	//Use only when we use our own gradient
+			heat_map.set('radius', 3);
+			heat_map.set('opacity', 0.6);
+			heat_map.set('dissipating', 'true');
+			heat_map.setMap(base_map);
+			google.maps.event.trigger(base_map,'resize');	//refresh the map
+		}; //refresh_heat_map
+		function initialize_map() {			//initializes and draws the background map
+			var home_loc = new google.maps.LatLng(40.7127,-74.0059); 
+			var mapOptions = {
+				center: home_loc,
+				zoom: 2,
+				mapTypeId: google.maps.MapTypeId.HYBRID
+			};
+			base_map = new google.maps.Map(document.getElementById("map-canvas"), mapOptions); //makes map global
+			//just draw home
+			var home_marker_obj = {
+				position : home_loc,				//an object of type LatLng
+				map : base_map,
+				animation : google.maps.Animation.DROP,
+				title : "Home"				
+			};
+			var home_marker = new google.maps.Marker(home_marker_obj);
+			home_marker.setMap(base_map);
+		};//End of function initialize_map
+		google.maps.event.addDomListener(window, 'load', initialize_map);
+		//End of map rendering related functions
+		//The parameter management functions
+		var chosen_time = 24;		//and by default we display all 24 hours data
+		var tag1=null,tag2=null,tag3=null,tag4=null,tag5=null;
+		function set_age(e) {
+			//This function sets the default time duration. When this is invoked, we redraw
+			//the entire screen again
+			chosen_time = e;
+			//console.log("Debug : clicked on time list : id : "+e);
+			refresh_data();				//Get a refresh of the data with the new chosen_time value
+		}
+		function set_tag(t1,t2,t3,t4,t5) {
+		//This function sets the tag value. When this is invoked, we redraw the entire screen again
+			hash_count = 0;
+			if (t1 !== null) {tag1 = t1;}
+			if (t1 === "null") {tag1 = null;}
+			if (t2 !== null) {tag2 = t2;}
+			if (t2 === "null") {tag2 = null;}
+			if (t3 !== null) {tag3 = t3;}
+			if (t3 === "null") {tag3 = null;}
+			if (t4 !== null) {tag4 = t4;}
+			if (t4 === "null") {tag4 = null;}			
+			if (t5 !== null) {tag5=t5;}
+			if (t5 === "null") {tag5 = null;}
+			//console.log("Debug : tag list : "+t1+" "+t2+" "+t3+" "+t4+" "+t5);
+			refresh_data();	//Get a refresh of the data with the new hashtag value
+		}; //end of function set_tag
+		//End of section that handles parameter management
+		//Start of section managing the communication channel
+		var event_source_set = false;		//The SSE event creattion flag
+		var event_source;
+		function refresh_data() {
+			//This function reaches out to the server and gets the current data values for the given hashtags. This function is invoked when the user refreshes 
+			//the screen input manually, or changes the tags.
+			var alien_contact = "tag1="+tag1+"&"+"tag2="+tag2+"&"+"tag3="+tag3+"&"+"tag4="+tag4+"&"+"tag5="+tag5+"&"+"chosen_time="+chosen_time;
+			var req_struct = new XMLHttpRequest();
+			var rcv_data =function() {
+				if ((req_struct.readyState === 4) && (req_struct.status === 200)) {
+					if (req_struct.responseText) proc_incoming_data(req_struct.responseText);
+					if (event_source_set === false) {		//This ensures we do this set up only once...that too after the first submit has been pressed
+						//console.log("creating event_source...");					
+						//The SSE interface
+						event_source = new EventSource("//senti-analyzer.elasticbeanstalk.com:2678/events");
+						event_source.addEventListener('open', function(e) {/*console.log("Event connection opened ...");*/}, false);
+						event_source.onmessage = function(e) {if (e.data) proc_incoming_data(e.data);};
+						event_source.addEventListener('error', function(e) {if (e.readyState === EventSource.CLOSED) {}}, false);
+					}; //end of if event_source
+				};
+			};  //end of rcv data
+			req_struct.onreadystatechange = rcv_data;	//handles the full response
+			req_struct.open("POST","http://senti-analyzer.elasticbeanstalk.com:2678/data",true);	//false will block till http returns
+			req_struct.setRequestHeader("Content-type","text/x-www-form-urlencoded");
+			req_struct.send(alien_contact);
+			req_struct.onerror = function(e) {console.log("Error in XMLHTTPReq : ",e);};
+		}; //End of function refresh_data()
+		function proc_incoming_data(a_string) {
+			//This function received an incoming string, splits it as required, and updates geo_data[]
+			geo_data = [];	//We rebuild the geo data !!! Imp - if we DO NOT rebuild, we will never be able to change the tag value, as geo_data will contain old tag data
+			//console.log("The incoming string is : "+a_string);
+			//In this situation, we just add to the geo_data. The structure of data received is 
+			var records = a_string.split(":");
+			for (var i = 0; i < records.length; i++) {
+				var rec_elements = records[i].split(";");	//Break down the record object into components
+					if ((rec_elements[0] === null) || (rec_elements[1] === null) || (rec_elements[2] === null) || (rec_elements[3] === null)) continue;
+					var geo_point = {
+						'tag': rec_elements[0],
+						'lat': rec_elements[1],
+						'lng': rec_elements[2],
+						'senti':rec_elements[3]
+					};
+					geo_data.push(geo_point);
+				};
+			//console.log("Debug: proc incoming msg : "+records.length+" records"+" and length of geo_data : "+geo_data.length);
+			refresh_heat_map();
+		};
+</script>
+ 	<!--Adding the Bootstrap components first -->
+	<nav class="navbar navbar-inverse navbar-fixed-top">
+		<div class="container-fluid">
+		<!--Text form begins here-->
+		<form id="get_tags" class="navbar-form navbar-left">
+			<div class="form-group form-inline">
+				<input id= "box1" type="text" class="form-control" placeholder="tag1" name="tag1">
+			</div>
+			<div class="form-group form-inline">
+				<input id= "box2" type="text" class="form-control" placeholder="tag2" name="tag2">
+			</div>
+			<div class="form-group form-inline">
+				<input id= "box3" type="text" class="form-control" placeholder="tag3" name="tag3">
+			</div>
+			<div class="form-group form-inline">
+				<input id= "box4" type="text" class="form-control" placeholder="tag4" name="tag4">
+			</div>
+			<div class="form-group form-inline">
+				<input id= "box5" type="text" class="form-control" placeholder="tag5" name="tag5">
+			</div>
+			<input type="button" value="Submit" onclick="set_tag(document.getElementById('box1').value,document.getElementById('box2').value,document.getElementById('box3').value,document.getElementById('box4').value,document.getElementById('box5').value);">
+		</form>
+		<div class="navbar-header row">
+			<a class="navbar-brand">Twitter Sentiment Analyzer</a>
+			<ul class="nav navbar-nav">
+			<li class="dropdown"><a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" >Hours <span class="caret"></span></a>
+				<ul class="dropdown-menu" role="menu">
+					<li id = "tag1" onclick="set_age(3);"><a href="#">3</a></li>
+					<li id = "tag2" onclick="set_age(6);"><a href="#">6</a></li>
+					<li id = "tag3" onclick="set_age(12);"><a href="#">12</a></li>
+					<li class="divider"></li>
+					<li id = "tag0" onclick="set_age(24);"><a href="#">24</a></li>
+				</ul>
+			</li>
+			</ul>
+		</div>
+		</div><!-- /.container-fluid -->
+	</nav>
+<!-- Nav bar display complete -->
+	<div id="map-canvas"></div>
+</body>
